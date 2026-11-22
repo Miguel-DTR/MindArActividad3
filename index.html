@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi experiencia AR con MindAR</title>
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<style>
+  :root { --ink:#101935; --blue:#2b59ff; --paper:#ffffff; --ok:#17a34a; }
+  html, body { margin:0; height:100%; overflow:hidden; font-family:system-ui,sans-serif; }
+  .overlay { position:fixed; z-index:10; left:0; right:0; display:flex; justify-content:center; pointer-events:none; }
+  #status { top:max(12px, env(safe-area-inset-top)); }
+  #badge { background:var(--ink); color:var(--paper); padding:10px 18px; border-radius:999px; font-size:15px; transition:background .3s; }
+  #badge.found { background:var(--ok); }
+  #loader { position:fixed; inset:0; z-index:20; background:var(--ink); color:var(--paper); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; padding:24px; }
+  #loader.hide { display:none; }
+  .spin { width:38px; height:38px; border:4px solid #ffffff44; border-top-color:#fff; border-radius:50%; animation:r 1s linear infinite; }
+  @keyframes r { to { transform:rotate(360deg); } }
+  #scanbox { position:fixed; z-index:5; top:50%; left:50%; width:62vmin; height:62vmin; transform:translate(-50%,-50%); border:3px dashed #ffffffcc; border-radius:18px; pointer-events:none; }
+  #scanbox.hide { display:none; }
+  #controls { bottom:max(14px, env(safe-area-inset-bottom)); gap:8px; flex-wrap:wrap; padding:0 10px; }
+  #controls button { pointer-events:auto; border:0; background:var(--paper); color:var(--ink); font-size:15px; font-weight:600; padding:12px 16px; border-radius:12px; box-shadow:0 2px 8px #0004; }
+  #controls button:active { background:var(--blue); color:var(--paper); }
+  #controls button:focus-visible { outline:3px solid var(--blue); outline-offset:2px; }
+</style>
+</head>
+<body>
+
+<div id="loader"><div class="spin"></div><div>Cargando cámara y detector…<br>Acepta el permiso de la cámara.</div></div>
+<div id="scanbox"></div>
+<div id="status" class="overlay"><div id="badge">Apunta la cámara a un target</div></div>
+<div id="controls" class="overlay">
+  <button id="btnShape">Cambiar modelo</button>
+  <button id="btnColor">Cambiar color</button>
+  <button id="btnAnim">Cambiar animación</button>
+</div>
+
+<a-scene mindar-image="imageTargetSrc: ./targets.mind; maxTrack: 2; uiLoading: no; uiScanning: no; uiError: no;"
+         color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights"
+         vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+
+  <a-camera position="0 0 0" look-controls="enabled: false"
+            cursor="fuse: false; rayOrigin: mouse;" raycaster="far: 10000; objects: .clickable"></a-camera>
+  <a-light type="ambient" intensity="1.1"></a-light>
+  <a-light type="directional" intensity="1.4" position="1 2 3"></a-light>
+
+  <!-- Target 0: primera imagen que compilaste -->
+  <a-entity mindar-image-target="targetIndex: 0" id="t0">
+    <a-entity class="clickable" id="obj0" position="0 0 0.3" scale="0.35 0.35 0.35"
+              geometry="primitive: box" material="color: #2b59ff; metalness: 0.2"></a-entity>
+    <!-- Para usar un modelo propio (.glb), reemplaza la línea de arriba por:
+    <a-gltf-model class="clickable" src="./models/modelo1.glb" position="0 0 0" scale="0.5 0.5 0.5"></a-gltf-model> -->
+  </a-entity>
+
+  <!-- Target 1: segunda imagen -->
+  <a-entity mindar-image-target="targetIndex: 1" id="t1">
+    <a-entity class="clickable" id="obj1" position="0 0 0.3" scale="0.35 0.35 0.35"
+              geometry="primitive: sphere" material="color: #e8453c; metalness: 0.2"></a-entity>
+  </a-entity>
+</a-scene>
+
+<script>
+  const scene = document.querySelector('a-scene');
+  const badge = document.getElementById('badge');
+  const scanbox = document.getElementById('scanbox');
+  const shapes = ['box', 'sphere', 'cone', 'torus', 'dodecahedron'];
+  const colors = ['#2b59ff', '#e8453c', '#f5b700', '#17a34a', '#8e44ad'];
+  const anims = ['spin', 'pulse', 'jump', 'stop'];
+  const animNames = { spin: 'Girar', pulse: 'Latir', jump: 'Saltar', stop: 'Quieto' };
+
+  // Estado independiente por target
+  const items = [0, 1].map(i => ({
+    target: document.getElementById('t' + i),
+    obj: document.getElementById('obj' + i),
+    shape: i, color: i, anim: 3, visible: false, name: 'Target ' + (i + 1)
+  }));
+
+  function applyAnim(it) {
+    const o = it.obj;
+    ['animation__spin', 'animation__pulse', 'animation__jump'].forEach(a => o.removeAttribute(a));
+    o.setAttribute('rotation', '0 0 0');
+    o.setAttribute('scale', '0.35 0.35 0.35');
+    o.setAttribute('position', '0 0 0.3');
+    const a = anims[it.anim];
+    if (a === 'spin') o.setAttribute('animation__spin', { property: 'rotation', to: '0 360 0', dur: 3000, loop: true, easing: 'linear' });
+    if (a === 'pulse') o.setAttribute('animation__pulse', { property: 'scale', from: '0.3 0.3 0.3', to: '0.5 0.5 0.5', dir: 'alternate', dur: 700, loop: true, easing: 'easeInOutSine' });
+    if (a === 'jump') o.setAttribute('animation__jump', { property: 'position', from: '0 0 0.2', to: '0 0 0.7', dir: 'alternate', dur: 500, loop: true, easing: 'easeOutQuad' });
+  }
+  function applyShape(it) { it.obj.setAttribute('geometry', 'primitive', shapes[it.shape % shapes.length]); }
+  function applyColor(it) { it.obj.setAttribute('material', 'color', colors[it.color % colors.length]); }
+
+  // Los botones afectan a los targets visibles (o a todos si ninguno se ve)
+  function active() { const v = items.filter(i => i.visible); return v.length ? v : items; }
+
+  document.getElementById('btnShape').onclick = () => active().forEach(it => { it.shape++; applyShape(it); });
+  document.getElementById('btnColor').onclick = () => active().forEach(it => { it.color++; applyColor(it); });
+  document.getElementById('btnAnim').onclick = () => active().forEach(it => {
+    it.anim = (it.anim + 1) % anims.length; applyAnim(it);
+    if (it.visible) badge.textContent = it.name + ': ' + animNames[anims[it.anim]];
+  });
+
+  // Clic / toque sobre el objeto = cambia de modelo
+  items.forEach(it => {
+    it.obj.addEventListener('click', () => { it.shape++; applyShape(it); });
+
+    // Feedback visual al detectar o perder el target
+    it.target.addEventListener('targetFound', () => {
+      it.visible = true; scanbox.classList.add('hide');
+      badge.textContent = '¡' + it.name + ' detectado!'; badge.classList.add('found');
+    });
+    it.target.addEventListener('targetLost', () => {
+      it.visible = false;
+      if (!items.some(i => i.visible)) {
+        scanbox.classList.remove('hide');
+        badge.textContent = 'Target perdido. Vuelve a apuntar.'; badge.classList.remove('found');
+      }
+    });
+  });
+
+  scene.addEventListener('arReady', () => document.getElementById('loader').classList.add('hide'));
+  scene.addEventListener('arError', () => {
+    document.getElementById('loader').innerHTML =
+      '<div>No se pudo iniciar la cámara.<br>Revisa el permiso y que la página use HTTPS.</div>';
+  });
+</script>
+</body>
+</html>
