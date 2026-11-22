@@ -1,0 +1,8 @@
+Model Information:
+* title:	Low-poly Dragon
+* source:	https://sketchfab.com/3d-models/low-poly-dragon-742cbc9a895846fe9a0f529e0e934627
+* author:	flightblaze (https://sketchfab.com/flightblaze)
+
+Model License:
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works
